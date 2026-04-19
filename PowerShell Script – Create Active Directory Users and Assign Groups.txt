@@ -1,0 +1,88 @@
+﻿Import-Module ActiveDirectory
+
+$users = Import-Csv "C:\Temp\employees.csv" -Encoding UTF8
+$pwd   = ConvertTo-SecureString "Linux01234" -AsPlainText -Force
+
+function Convert-SwedishChars {
+  param([string]$Text)
+
+  $Text = $Text -replace 'ä','a' -replace 'Ä','A'
+  $Text = $Text -replace 'ö','o' -replace 'Ö','O'
+  $Text = $Text -replace 'å','a' -replace 'Å','A'
+
+  return $Text
+}
+
+# Create Users
+foreach ($u in $users) {
+
+  $ouPath = if ($u.City -eq "Stockholm") {
+    "OU=Users,OU=Stockholm,DC=corp,DC=local"
+  } else {
+    "OU=Users,OU=Lund,DC=corp,DC=local"
+  }
+
+  # Create SamAccountName (FirstName + LastName, max 20 characters)
+  $samSource = Convert-SwedishChars "$($u.FirstName)$($u.LastName)"
+  $sam = ($samSource -replace "[^a-zA-Z0-9]", "")
+  if ($sam.Length -gt 20) { $sam = $sam.Substring(0,20) }
+
+  # Ensure SamAccountName is unique
+  $base = $sam
+  $i = 1
+  while (Get-ADUser -Filter "SamAccountName -eq '$sam'" -ErrorAction SilentlyContinue) {
+    $suffix = $i.ToString()
+    $cut = [Math]::Min(20 - $suffix.Length, $base.Length)
+    $sam = $base.Substring(0,$cut) + $suffix
+    $i++
+  }
+
+  $upn = "$sam@corp.local"
+
+  New-ADUser `
+    -Name "$($u.FirstName) $($u.LastName)" `
+    -GivenName $u.FirstName `
+    -Surname $u.LastName `
+    -SamAccountName $sam `
+    -UserPrincipalName $upn `
+    -Office $u.City `
+    -Department $u.Department `
+    -OfficePhone $u.ContactNumber `
+    -StreetAddress $u.Address `
+    -PostalCode $u.ZipCode `
+    -Path $ouPath `
+    -AccountPassword $pwd `
+    -Enabled $true `
+    -ChangePasswordAtLogon $false
+}
+
+# Add Users to Groups (Based on City and Department)
+foreach ($u in $users) {
+
+  $searchBase = if ($u.City -eq "Stockholm") {
+    "OU=Users,OU=Stockholm,DC=corp,DC=local"
+  } else {
+    "OU=Users,OU=Lund,DC=corp,DC=local"
+  }
+
+  $adUser = Get-ADUser -Filter "GivenName -eq '$($u.FirstName)' -and Surname -eq '$($u.LastName)'" `
+    -SearchBase $searchBase -ErrorAction SilentlyContinue
+
+  if (-not $adUser) { continue }
+
+  $group = switch ("$($u.City)|$($u.Department)") {
+    "Stockholm|Sales"              { "GG_Stockholm_Sales" }
+    "Stockholm|Economy"            { "GG_Stockholm_Economy" }
+    "Stockholm|Consultant"         { "GG_Stockholm_Consultant" }
+    "Stockholm|BusinessManagement" { "GG_Stockholm_Boss" }
+
+    "Lund|Sales"                   { "GG_Lund_Sales" }
+    "Lund|Economy"                 { "GG_Lund_Economy" }
+    "Lund|Consultant"              { "GG_Lund_Consultant" }
+    default { $null }
+  }
+
+  if ($group) {
+    Add-ADGroupMember -Identity $group -Members $adUser -ErrorAction SilentlyContinue
+  }
+}
