@@ -74,4 +74,4 @@ It represents a production-like setup for a fictional company, focusing on struc
 
 ## Demo Video
 
-https://youtu.be/BpLBVum34LA
+https://youtu.be/BpLBVum34lA
