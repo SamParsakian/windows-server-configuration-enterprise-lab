@@ -74,4 +74,4 @@ It represents a production-like setup for a fictional company, focusing on struc
 
 ## Demo Video
 
-[![Windows Server Enterprise Lab Demo](https://img.youtube.com/vi/BpLBVum34lA/maxresdefault.jpg)](https://youtu.be/BpLBVum34lA)
+[![Windows Server Enterprise Lab Demo](https://img.youtube.com/vi/6BKXn1UIeOM/maxresdefault.jpg)](https://youtu.be/6BKXn1UIeOM)
